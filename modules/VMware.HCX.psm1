@@ -29,11 +29,15 @@ Function Connect-HcxServer {
     $body = $payload | ConvertTo-Json
 
     $hcxLoginUrl = "https://$Server/hybridity/api/sessions"
+    $headers = @{
+        "Accept" = "application/json"
+        "ContentType" = "application/json"
+    }
 
     if($PSVersionTable.PSEdition -eq "Core") {
-        $results = Invoke-WebRequest -Uri $hcxLoginUrl -Body $body -Method POST -UseBasicParsing -ContentType "application/json" -SkipCertificateCheck
+        $results = Invoke-WebRequest -Uri $hcxLoginUrl -Body $body -Method POST -UseBasicParsing -Headers $headers -ContentType "application/json" -SkipCertificateCheck
     } else {
-        $results = Invoke-WebRequest -Uri $hcxLoginUrl -Body $body -Method POST -UseBasicParsing -ContentType "application/json"
+        $results = Invoke-WebRequest -Uri $hcxLoginUrl -Body $body -Method POST -UseBasicParsing -Headers $headers -ContentType "application/json"
     }
 
     if($results.StatusCode -eq 200) {
@@ -45,9 +49,11 @@ Function Connect-HcxServer {
             "Accept"="application/json"
         }
 
+        $res = ($results.Content | ConvertFrom-Json)
         $global:hcxConnection = new-object PSObject -Property @{
             'Server' = "https://$server/hybridity/api";
             'headers' = $headers
+            'HCXUUID' = $res.data.endpointInfo.uuid
         }
         $global:hcxConnection
     } else {
@@ -82,15 +88,21 @@ Function Get-HcxCloudConfig {
             $cloudvcRequests = Invoke-WebRequest -Uri $cloudConfigUrl -Method GET -Headers $global:hcxConnection.headers -UseBasicParsing
         }
 
+        $cloudvcRequests.content
         $cloudvcData = ($cloudvcRequests.content | ConvertFrom-Json).data.items
 
-        $tmp = [pscustomobject] @{
-            Name = $cloudvcData.cloudName;
-            Version = $cloudvcData.version;
-            Build = $cloudvcData.buildNumber;
-            HCXUUID = $cloudvcData.endpointId;
+        $results = @()
+        foreach($cloudInstance in $cloudvcData)
+        {
+            $tmp = [pscustomobject] @{
+                Name = $cloudInstance.cloudName;
+                Version = $cloudInstance.version;
+                Build = ""; # Not in the output anymore
+                HCXUUID = $cloudInstance.endpointId;
+            }
+            $results += $tmp
         }
-        $tmp
+        $results
     }
 }
 
@@ -1057,7 +1069,7 @@ Function Set-HcxLocation {
 
             if(-not $cityDetails) {
                 Write-Host -ForegroundColor Red "Invalid input for City and/or Country, please provide the exact input from Get-HcxCity cmdlet"
-                break 
+                break
             }
 
             $locationConfig = @{
@@ -1089,7 +1101,7 @@ Function Set-HcxLocation {
             if($results.StatusCode -eq 204) {
                 Write-Host -ForegroundColor Green "Successfully registered datacenter location $City to HCX Manager"
             } else {
-                Write-Error "Failed to registerd datacenter location in HCX Manager" 
+                Write-Error "Failed to registerd datacenter location in HCX Manager"
             }
         } else {
             Write-Error "Failed to search for city $City"
