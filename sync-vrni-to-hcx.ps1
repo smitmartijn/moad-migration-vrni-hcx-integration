@@ -1,13 +1,14 @@
+[CmdletBinding(DefaultParameterSetName="vRNI")]
 param (
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory=$true, ParameterSetName="vRNI")]
         # vRealize Network Insight Platform Server
         [ValidateNotNullOrEmpty()]
         [String]$vRNI_Server,
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory=$true, ParameterSetName="vRNI")]
         # vRealize Network Insight Platform username to login with
         [ValidateNotNullOrEmpty()]
         [String]$vRNI_Username,
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory=$true, ParameterSetName="vRNI")]
         # vRealize Network Insight Platform password to login with
         [ValidateNotNullOrEmpty()]
         [String]$vRNI_Password,
@@ -30,7 +31,13 @@ param (
     [Parameter(Mandatory=$true)]
         # Hostname of the destination HCX Cloud appliance to create the Mobility Groups for
         [ValidateNotNullOrEmpty()]
-        [String]$HCX_DestinationCloud
+        [String]$HCX_DestinationCloud,
+    [Parameter(Mandatory=$false)]
+        # Array of application names to limit the sync to
+        [array[]]$SyncApplications = @(),
+    [Parameter(Mandatory=$true, ParameterSetName="vRNICloud")]
+        # String with the CSP API Refresh token for access to vRNI Cloud
+        [string]$vRNI_Cloud_API_Token
 )
 
 Import-Module VMware.VimAutomation.Hcx -Force
@@ -52,16 +59,38 @@ Function My-Logger {
     Write-Host -ForegroundColor $color " $message"
 }
 
-My-Logger -message "Connecting to vRealize Network Insight.."
-$connectionvRNI = Connect-vRNIServer -Server $vRNI_Server -Username $vRNI_Username -Password $vRNI_Password
+if($PSCmdlet.ParameterSetName -eq "vRNI")
+{
+    My-Logger -message "Connecting to vRealize Network Insight.."
+    $connectionvRNI = Connect-vRNIServer -Server $vRNI_Server -Username $vRNI_Username -Password $vRNI_Password
+}
+else {
+    My-Logger -message "Connecting to vRealize Network Insight Cloud.."
+    $connectionvRNI = Connect-NIServer -RefreshToken $vRNI_Cloud_API_Token
+}
 
 if(!$connectionvRNI) {
     throw "Unable to connect to vRealize Network Insight"
 }
 
 # First, get a list of all applications that are in vRNI
-My-Logger -message "Retrieving all applications.."
-$vRNI_applications = Get-vRNIApplication -Connection $connectionvRNI
+My-Logger -message "Retrieving applications from vRNI.."
+# Are we looking for specified applications?
+if($SyncApplications.Count -gt 0) {
+    $vRNI_applications = @()
+    foreach($app in $SyncApplications) {
+        $vRNI_app = Get-vRNIApplication -Connection $connectionvRNI -Name $app
+        if($vRNI_app) {
+            $vRNI_applications += $vRNI_app
+        }
+
+    }
+}
+else {
+    # No specified applications, so get all applications
+    $vRNI_applications = Get-vRNIApplication -Connection $connectionvRNI
+}
+
 $application_list = @()
 
 foreach($app in $vRNI_applications)
@@ -70,7 +99,6 @@ foreach($app in $vRNI_applications)
         "name" = $app.name
         "members" = @()
     }
-    #Write-Host "App Name: $($app.name)"
     $memberVMs = Get-vRNIApplicationMemberVM -Application $app
     $entityIDs = @()
     foreach($memberVM in $memberVMs) {
@@ -153,4 +181,7 @@ foreach($application in $application_list)
     My-Logger -message "Created Mobility Group: '$($application.name)_$($timestamp)'"
 }
 
-Disconnect-vRNIServer
+if($PSCmdlet.ParameterSetName -eq "vRNI")
+{
+    Disconnect-vRNIServer
+}
