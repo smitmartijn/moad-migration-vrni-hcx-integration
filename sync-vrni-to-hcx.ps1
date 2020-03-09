@@ -34,7 +34,7 @@ param (
         [String]$HCX_DestinationCloud,
     [Parameter(Mandatory=$false)]
         # Array of application names to limit the sync to
-        [array[]]$SyncApplications = @(),
+        [array[]]$Sync_Applications = @(),
     [Parameter(Mandatory=$true, ParameterSetName="vRNICloud")]
         # String with the CSP API Refresh token for access to vRNI Cloud
         [string]$vRNI_Cloud_API_Token
@@ -76,9 +76,9 @@ if(!$connectionvRNI) {
 # First, get a list of all applications that are in vRNI
 My-Logger -message "Retrieving applications from vRNI.."
 # Are we looking for specified applications?
-if($SyncApplications.Count -gt 0) {
+if($Sync_Applications.Count -gt 0) {
     $vRNI_applications = @()
-    foreach($app in $SyncApplications) {
+    foreach($app in $Sync_Applications) {
         $vRNI_app = Get-vRNIApplication -Connection $connectionvRNI -Name $app
         if($vRNI_app) {
             $vRNI_applications += $vRNI_app
