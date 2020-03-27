@@ -3,6 +3,37 @@ This integration script between vRealize Network Insight (vRNI) and VMware HCX, 
 
 First, use the application discovery methods within vRNI to discover the application boundaries, including the VMs (or other workloads), to form application constructs within vRNI. This integration script then synchronizes the vRNI application constructs into HCX Mobility Groups, saving you the time that it would've taken to do this manually. After the sync, you can pick up the migration process and execute the migration.
 
+## Usage
+```
+./sync-vrni-to-hcx.ps1
+```
+
+### Parameters
+`-HCX_Server`: HCX Enterprise appliance
+
+`-HCX_Username`: HCX Enterprise username to login with
+
+`-HCX_Password`: HCX Enterprise password to login with
+
+`-HCX_DestinationVC`: Hostname of the destination vCenter to create the Mobility Groups for
+
+`-HCX_DestinationCloud`: Hostname of the destination HCX Cloud appliance to create the Mobility Groups for
+
+`-Sync_Applications` Array of application names to limit the sync with. This is an optional paramater and should be formatted like this: `("MyApp1", "MyApp2", "..")`
+
+### vRNI Authentication
+This script can be run against vRealize Network Insight and vRealize Network Insight Cloud. Each have different authentication methods, and there are different parameters to use:
+
+#### vRNI Cloud
+
+To use vRNI Cloud, only the `-vRNI_Cloud_API_Token` parameter is required. This will be the VMware Cloud Services Portal (CSP) Refresh token, which you can generate under "My Account" in CSP.
+
+#### vRNI on-prem
+
+For vRNI on-prem, the following (self-explanatory) parameters are required:
+
+`-vRNI_Server your-platform-appliance -vRNI_Username myusername -vRNI_Password mypassword`
+
 ## Example
 
 ### Synchronising all vRNI applications
