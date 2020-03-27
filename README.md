@@ -3,6 +3,9 @@ This integration script between vRealize Network Insight (vRNI) and VMware HCX, 
 
 First, use the application discovery methods within vRNI to discover the application boundaries, including the VMs (or other workloads), to form application constructs within vRNI. This integration script then synchronizes the vRNI application constructs into HCX Mobility Groups, saving you the time that it would've taken to do this manually. After the sync, you can pick up the migration process and execute the migration.
 
+# vRNI & HCX Requirements
+Before running this integration script, make sure both vRealize Network Insight and HCX are licensed with Enterprise licenses.
+
 ## Usage
 ```
 ./sync-vrni-to-hcx.ps1
