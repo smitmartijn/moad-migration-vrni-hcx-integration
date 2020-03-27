@@ -37,6 +37,20 @@ First, use the application discovery methods within vRNI to discover the applica
 ./sync-vrni-to-hcx.ps1 -vRNI_Cloud_API_Token 'xxx' -HCX_Server hcxe.vrni.cmbu.local -HCX_Username hcx@cmbu.local -HCX_Password 'xxx' -HCX_DestinationVC vc-pks.vrni.cmbu.local -HCX_DestinationCloud hcxc.vrni.cmbu.local
 ```
 
+## Installation
+
+This PowerShell script requires at a minimum PowerShell version 6.2. Beyond that, it also needs the modules VMware.VimAutomation.Hcx version 11.5+ and PowervRNI version 1.8+. These are the steps to get up and running:
+
+```
+1. Download the vRealize Network Insight and HCX Integration fling.
+2. Open PowerShell and execute the following:
+3. PS > Install-Module VMware.VimAutomation.Hcx
+4. PS > Install-Module PowervRNI
+5. PS > Get-Help ./sync-vrni-to-hcx.ps1
+6. You can now run the sync-vrni-to-hcx.ps1 script.
+```
+
+
 ## HCX API Calls
 
 ### Authentication
