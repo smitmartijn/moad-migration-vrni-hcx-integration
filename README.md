@@ -12,17 +12,24 @@ Before running this integration script, make sure both vRealize Network Insight 
 ```
 
 ### Parameters
+
+`-vRNI_Server`: vRealize Network Insight Platform appliance
+
+`-vRNI_Username`: vRNI Username to login with
+`-vRNI_Password`: vRNI Password to login with - a PowerShell secure string
+`-vRNI_Credential`: Optional PowerShell credential object to login with. This would be given instead of the username and password
+
 `-HCX_Server`: HCX Enterprise appliance
-
 `-HCX_Username`: HCX Enterprise username to login with
-
-`-HCX_Password`: HCX Enterprise password to login with
+`-HCX_Password`: HCX Enterprise password to login with - a PowerShell secure string
+`-HCX_Credential`: Optional PowerShell credential object to login with. This would be given instead of the username and password
 
 `-HCX_DestinationVC`: Hostname of the destination vCenter to create the Mobility Groups for
-
 `-HCX_DestinationCloud`: Hostname of the destination HCX Cloud appliance to create the Mobility Groups for
 
-`-Sync_Applications` Array of application names to limit the sync with. This is an optional paramater and should be formatted like this: `("MyApp1", "MyApp2", "..")`
+`-Sync_Applications`: Array of application names to limit the sync with. This is an optional paramater and should be formatted like this: `("MyApp1", "MyApp2", "..")`
+
+`-SkipCertificateCheck`: Switch to skip SSL certificate validation. Without the switch, this script will expect valid certificates on vRNI and HCX
 
 ### vRNI Authentication
 This script can be run against vRealize Network Insight and vRealize Network Insight Cloud. Each have different authentication methods, and there are different parameters to use:
@@ -37,11 +44,20 @@ For vRNI on-prem, the following (self-explanatory) parameters are required:
 
 `-vRNI_Server your-platform-appliance -vRNI_Username myusername -vRNI_Password mypassword`
 
+The vRNI_Password parameter is a SecureString, meaning you have to create a secure string from your plaintext password:
+
+```
+$vrni_pw = ConvertTo-SecureString 'admin' -AsPlainText -Force
+./sync-vrni-to-hcx.ps1 -Password $vrni_pw
+```
+
 ## Example
 
 ### Synchronising all vRNI applications
 ```
-./sync-vrni-to-hcx.ps1 -vRNI_Server 10.196.164.134 -vRNI_Username admin@local -vRNI_Password 'xxx' -HCX_Server hcxe.vrni.cmbu.local -HCX_Username hcx@cmbu.local -HCX_Password 'xxx' -HCX_DestinationVC vc-pks.vrni.cmbu.local -HCX_DestinationCloud hcxc.vrni.cmbu.local
+$vrni_pw = ConvertTo-SecureString 'admin' -AsPlainText -Force
+$hcx_pw = ConvertTo-SecureString 'VMware1!' -AsPlainText -Force
+./sync-vrni-to-hcx.ps1 -vRNI_Server 10.196.164.134 -vRNI_Username admin@local -vRNI_Password $vrni_pw -HCX_Server hcxe.vrni.cmbu.local -HCX_Username hcx@cmbu.local -HCX_Password $hcx_pw -HCX_DestinationVC vc-pks.vrni.cmbu.local -HCX_DestinationCloud hcxc.vrni.cmbu.local
 [03-05-2020_05:19:59] Connecting to vRealize Network Insight..
 [03-05-2020_05:20:01] Retrieving all applications..
 [03-05-2020_05:20:20] Found application: 'onprem_imagic' with 6 VMs
@@ -63,7 +79,9 @@ For vRNI on-prem, the following (self-explanatory) parameters are required:
 
 ### Synchronising selective vRNI applications:
 ```
-./sync-vrni-to-hcx.ps1 -vRNI_Server 10.196.164.134 -vRNI_Username admin@local -vRNI_Password 'xxx' -HCX_Server hcxe.vrni.cmbu.local -HCX_Username hcx@cmbu.local -HCX_Password 'xxx' -HCX_DestinationVC vc-pks.vrni.cmbu.local -HCX_DestinationCloud hcxc.vrni.cmbu.local -Sync_Applications ("app_hcx-3tierapp", "Top-Video")
+$vrni_pw = ConvertTo-SecureString 'admin' -AsPlainText -Force
+$hcx_pw = ConvertTo-SecureString 'VMware1!' -AsPlainText -Force
+./sync-vrni-to-hcx.ps1 -vRNI_Server 10.196.164.134 -vRNI_Username admin@local -vRNI_Password $vrni_pw -HCX_Server hcxe.vrni.cmbu.local -HCX_Username hcx@cmbu.local -HCX_Password $hcx_pw -HCX_DestinationVC vc-pks.vrni.cmbu.local -HCX_DestinationCloud hcxc.vrni.cmbu.local -Sync_Applications ("app_hcx-3tierapp", "Top-Video") -SkipCertificateCheck
 ```
 
 ### Synchronising from vRNI Cloud
