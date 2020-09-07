@@ -16,15 +16,21 @@ Before running this integration script, make sure both vRealize Network Insight 
 `-vRNI_Server`: vRealize Network Insight Platform appliance
 
 `-vRNI_Username`: vRNI Username to login with
+
 `-vRNI_Password`: vRNI Password to login with - a PowerShell secure string
+
 `-vRNI_Credential`: Optional PowerShell credential object to login with. This would be given instead of the username and password
 
 `-HCX_Server`: HCX Enterprise appliance
+
 `-HCX_Username`: HCX Enterprise username to login with
+
 `-HCX_Password`: HCX Enterprise password to login with - a PowerShell secure string
+
 `-HCX_Credential`: Optional PowerShell credential object to login with. This would be given instead of the username and password
 
 `-HCX_DestinationVC`: Hostname of the destination vCenter to create the Mobility Groups for
+
 `-HCX_DestinationCloud`: Hostname of the destination HCX Cloud appliance to create the Mobility Groups for
 
 `-Sync_Applications`: Array of application names to limit the sync with. This is an optional paramater and should be formatted like this: `("MyApp1", "MyApp2", "..")`
