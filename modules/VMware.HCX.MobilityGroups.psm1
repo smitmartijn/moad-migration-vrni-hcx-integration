@@ -1,4 +1,10 @@
-
+# vRealize Network Insight and VMware HCX Integration
+# Martijn Smit (@smitmartijn)
+# msmit@vmware.com
+# Version 1.0
+#
+# Copyright 2020 VMware, Inc.
+# SPDX-License-Identifier: BSD-2-Clause
 
 function Get-HcxMobilityGroup {
   <#
