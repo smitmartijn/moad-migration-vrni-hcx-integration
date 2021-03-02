@@ -291,7 +291,7 @@ Function Connect-HcxServer_Custom {
 
   if ($PSVersionTable.PSEdition -eq "Core") {
     if ($SkipCertificateCheck -eq $True) {
-      $results = Invoke-WebRequest @invokeRestMethodParams -UseBasicParsing -SkipCertificateCheck -Debug
+      $results = Invoke-WebRequest @invokeRestMethodParams -UseBasicParsing -SkipCertificateCheck
     }
     else {
       $results = Invoke-WebRequest @invokeRestMethodParams -UseBasicParsing

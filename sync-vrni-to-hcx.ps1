@@ -67,7 +67,7 @@ if ([version]$moduleHCX.Version -lt [version]"11.5") {
 }
 Import-Module VMware.VimAutomation.Hcx
 # Load the HCX extension for Mobility Group management
-Import-Module "./modules/VMware.HCX.MobilityGroups.psm1"
+Import-Module -Force "./modules/VMware.HCX.MobilityGroups.psm1"
 
 # PowervRNI
 $modulePowervRNI = Get-InstalledModule -Name PowervRNI
@@ -77,7 +77,7 @@ if (!($modulePowervRNI)) {
 if ([version]$modulePowervRNI.Version -lt [version]"1.8") {
   throw "Required module 'PowervRNI' needs to be updated to 1.8+. It's at '$($modulePowervRNI.Version)' now. Please upgrade it by using: Update-Module PowervRNI"
 }
-Import-Module PowervRNI
+Import-Module -Force ./PowervRNI.psm1
 
 # @lamw function
 Function My-Logger {
@@ -155,7 +155,8 @@ if ($Sync_Applications.Count -gt 0) {
 }
 else {
   # No specified applications, so get all applications
-  $vRNI_applications = Get-vRNIApplication -Connection $connectionvRNI
+  $vRNI_applications = @()
+  $vRNI_applications += Get-vRNIApplication -Connection $connectionvRNI
 }
 
 # Now that we've got the applications, let's find the VMs associated with this application
@@ -240,16 +241,17 @@ $invokeRestMethodParams = @{
   "Password" = $connection_credentials.GetNetworkCredential().Password;
 }
 
-$hcx_connection = Connect-HcxServer @invokeRestMethodParams -Debug
+$hcx_connection = Connect-HcxServer @invokeRestMethodParams
 if ($hcx_connection -eq "") {
   throw "Unable to connect to HCX!"
 }
-if ($SkipCertificateCheck -eq $True) {
+# uncomment if you want to increase security, but defaulted to $true as the majority of infras have self-signed certs.
+#if ($SkipCertificateCheck -eq $True) {
   $invokeRestMethodParams.Add("SkipCertificateCheck", $True)
-}
-else {
-  $invokeRestMethodParams.Add("SkipCertificateCheck", $False)
-}
+#}
+#else {
+#  $invokeRestMethodParams.Add("SkipCertificateCheck", $False)
+#}
 
 $custom_hcx_connection = Connect-HcxServer_Custom @invokeRestMethodParams
 if ($custom_hcx_connection -eq "") {
