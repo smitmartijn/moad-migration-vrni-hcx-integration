@@ -77,7 +77,9 @@ if (!($modulePowervRNI)) {
 if ([version]$modulePowervRNI.Version -lt [version]"1.8") {
   throw "Required module 'PowervRNI' needs to be updated to 1.8+. It's at '$($modulePowervRNI.Version)' now. Please upgrade it by using: Update-Module PowervRNI"
 }
-Import-Module -Force ./PowervRNI.psm1
+Import-Module -Force PowervRNI
+
+Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -Confirm:$false
 
 # @lamw function
 Function My-Logger {
