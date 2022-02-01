@@ -286,7 +286,7 @@ $mobilityGroupConfig = New-HCXMobilityGroupConfiguration -SourceSite $sourceSite
   $targetSite -MigrationType $MigrationType -TargetDatastore $targetDatastore `
   -TargetComputeContainer $targetContainer
 
-$timestamp = (Get-Date).tostring("yyyy-MM-dd")
+$timestamp = (Get-Date).tostring("yyyy-MM-dd_H-mm")
 
 foreach ($application in $application_list) {
   # Adding HCX Mobility group
