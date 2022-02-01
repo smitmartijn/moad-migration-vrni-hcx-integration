@@ -54,10 +54,44 @@ param (
   # String with the CSP API Refresh token for access to vRNI Cloud
   [string]$vRNI_Cloud_API_Token,
   [ValidateNotNullOrEmpty()]
-  [switch]$SkipCertificateCheck
+  [switch]$SkipCertificateCheck,
+  [Parameter(Mandatory = $true)]
+  # Name of the datastore to which we're migrating
+  [ValidateNotNullOrEmpty()]
+  [String]$Target_DatastoreName,
+  [Parameter(Mandatory = $true)]
+  # Name of the resource pool we're putting the VMs in
+  [ValidateNotNullOrEmpty()]
+  [String]$Target_ResourcePoolName,
+  [Parameter(Mandatory = $true)]
+  # Name of the vCenter folder we're putting the VMs in
+  [ValidateNotNullOrEmpty()]
+  [String]$Target_FolderName,
+  [Parameter(Mandatory = $true)]
+  # vMotion, Bulk, Cold, RAV, OsAssistedMigration
+  [ValidateNotNullOrEmpty()]
+  [String]$MigrationType,
+  [Parameter(Mandatory = $true)]
+  # Name of the network we're putting the VMs in
+  [ValidateNotNullOrEmpty()]
+  [String]$Target_NetworkName
 )
 
-$ErrorActionPreference = 'SilentlyContinue'
+# @lamw function
+Function My-Logger {
+  param(
+    [Parameter(Mandatory = $true)]
+    [String]$message,
+    [Parameter(Mandatory = $false)]
+    [String]$color = "Green"
+  )
+
+  $timeStamp = Get-Date -Format "MM-dd-yyyy_hh:mm:ss"
+
+  Write-Host -NoNewline -ForegroundColor White "[$timestamp]"
+  Write-Host -ForegroundColor $color " $message"
+}
+
 
 # Load required modules; PowerCLI HCX, a custom extension to that module, and PowervRNI
 $moduleHCX = Get-InstalledModule -Name VMware.VimAutomation.Hcx
@@ -68,8 +102,6 @@ if ([version]$moduleHCX.Version -lt [version]"11.5") {
   throw "Required module 'VMware.VimAutomation.Hcx' needs to be updated to 11.5+. It's at '$($moduleHCX.Version)' now. Please upgrade it by using: Update-Module VMware.VimAutomation.Hcx"
 }
 Import-Module VMware.VimAutomation.Hcx
-# Load the HCX extension for Mobility Group management
-Import-Module -Force "./modules/VMware.HCX.MobilityGroups.psm1"
 
 # PowervRNI
 $modulePowervRNI = Get-InstalledModule -Name PowervRNI
@@ -80,8 +112,8 @@ if ([version]$modulePowervRNI.Version -lt [version]"1.8") {
   throw "Required module 'PowervRNI' needs to be updated to 1.8+. It's at '$($modulePowervRNI.Version)' now. Please upgrade it by using: Update-Module PowervRNI"
 }
 Import-Module -Force PowervRNI
-Set-PowerCLIConfiguration -Scope User -ParticipateInCEIP $false
-Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -Confirm:$false
+#Set-PowerCLIConfiguration -Scope User -ParticipateInCEIP $false
+#Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -Confirm:$false
 
 # Are we connecting to vRNI on-prem or vRNI Cloud?
 if ($PSCmdlet.ParameterSetName -eq "vRNI") {
@@ -112,9 +144,11 @@ if ($PSCmdlet.ParameterSetName -eq "vRNI") {
     $connection_credentials = Get-Credential -Message "vRealize Network Insight Platform Authentication"
   }
 
+  My-Logger -message "Connecting to vRealize Network Insight.."
   $connectionvRNI = Connect-vRNIServer -Server $vRNI_Server -Username $connection_credentials.Username -Password $connection_credentials.GetNetworkCredential().Password
 }
 else {
+  My-Logger -message "Connecting to vRealize Network Insight Cloud.."
   $connectionvRNI = Connect-NIServer -RefreshToken $vRNI_Cloud_API_Token
 }
 
@@ -123,6 +157,7 @@ if (!$connectionvRNI) {
 }
 
 # First, get a list of all applications that are in vRNI
+My-Logger -message "Retrieving applications from vRNI.."
 # Are we looking for specified applications?
 if ($Sync_Applications.Count -gt 0) {
   # If we are looking for specified applications, go through the specified apps and look them up individually
@@ -132,6 +167,9 @@ if ($Sync_Applications.Count -gt 0) {
     if ($vRNI_app) {
       # Save the located app to the array that we'll pass onto HCX
       $vRNI_applications += $vRNI_app
+    }
+    else {
+      My-Logger -message "Specified application '$($app)' not found - skipping" -color "Yellow"
     }
   }
 }
@@ -178,6 +216,8 @@ foreach ($app in $vRNI_applications) {
 
   # Save the application record to the global app list
   $application_list += $application_record
+
+  My-Logger -message "Found application: '$($app.name)' with $($application_record.members.Count) VMs" -color "Gray"
 }
 
 # Sanity check
@@ -186,6 +226,7 @@ if (!($application_list)) {
 }
 
 # Connect to HCX. We need both the VAMI connection (to get the VC UUID) and the regular connection (Mobility Groups)
+My-Logger -message "Connecting to VMware HCX.."
 
 # Make sure either -HCX_Credential is set, or both -HCX_Username and -HCX_Password
 if (($PsBoundParameters.ContainsKey("HCX_Credential") -And $PsBoundParameters.ContainsKey("HCX_Username")) -Or
@@ -215,9 +256,8 @@ elseif (!$PSBoundParameters.ContainsKey("HCX_Credential")) {
 }
 
 $invokeRestMethodParams = @{
-  "Server"   = $HCX_Server;
-  "Username" = $connection_credentials.Username;
-  "Password" = $connection_credentials.GetNetworkCredential().Password;
+  "Server"     = $HCX_Server;
+  "Credential" = $connection_credentials;
 }
 
 $hcx_connection = Connect-HcxServer @invokeRestMethodParams
@@ -225,47 +265,74 @@ if ($hcx_connection -eq "") {
   throw "Unable to connect to HCX!"
 }
 
-$invokeRestMethodParams.Add("SkipCertificateCheck", $True)
-$custom_hcx_connection = Connect-HcxServer_Custom @invokeRestMethodParams
-if ($custom_hcx_connection -eq "") {
-  throw "Unable to connect to HCX Enterprise."
-}
-
-# Get source HCX and vCenter UUIDs (we need that to create the Mobility Groups)
-$source_vc = Get-HCXSite -source -Server $HCX_Server
-$Source_VC_UUID = $source_vc.Id
+$sourceSite = Get-HCXSite -Source
 
 # Find the destination vCenter UUID
-$destination_vc = Get-HCXSite -Destination -Server $HCX_Server -Name $HCX_DestinationVC
-if ($destination_vc -eq "") {
+$targetSite = Get-HCXSite -Destination -Name $HCX_DestinationVC
+if ($targetSite -eq "") {
   throw "Unable to find the destination vCenter instance. Make sure vCenter '$($HCX_DestinationVC)' is paired with your HCX Enterprise instance."
 }
-# Save the vCenter UUID
-$Destination_VC_UUID = $destination_vc.Id
 
 # Find the destination HCX Cloud UUID
 $destination_hcx = Get-HCXSitePairing -Server $HCX_Server -Url "https://$($HCX_DestinationCloud)"
 if ($destination_hcx -eq "") {
   throw "Unable to find the destination HCX Cloud instance. Make sure HCX Cloud '$($HCX_DestinationCloud)' is paired with your HCX Enterprise instance."
 }
-# Save the HCX Cloud appliance UUID
-$Destination_HCX_UUID = $destination_hcx.Id
 
-$newGroup = "";
+$targetDatastore = Get-HCXDatastore -Site $targetSite -Name $Target_DatastoreName
+$targetContainer = Get-HCXContainer -Site $targetSite -Type "ResourcePool" -Name $Target_ResourcePoolName
+$targetFolder = Get-HCXContainer -Site $targetSite -Type Folder -Name $Target_FolderName
+
+$mobilityGroupConfig = New-HCXMobilityGroupConfiguration -SourceSite $sourceSite -DestinationSite `
+  $targetSite -MigrationType $MigrationType -TargetDatastore $targetDatastore `
+  -TargetComputeContainer $targetContainer
+
 $timestamp = (Get-Date).tostring("yyyy-MM-dd")
 
 foreach ($application in $application_list) {
   # Adding HCX Mobility group
   try {
-    $newGroup = New-HcxMobilityGroup -Connection $custom_hcx_connection -Name "vRNI_$($application.name)_$($timestamp)" -SourceVC_UUID $Source_VC_UUID -DestinationHCX_UUID $Destination_HCX_UUID -DestinationVC_UUID $Destination_VC_UUID -VMs $application.members
+    $hcxMigrations = @()
+    foreach ($vm in $application.members) {
+      $hcxVm = Get-HCXVM -Name $vm.name
+
+      $sourceNetwork = $hcxVm.Network[0]
+      $targetNetwork = Get-HCXNetwork -Type NsxtSegment -Name $Target_NetworkName -Site $targetSite
+      $networkMapping = New-HCXNetworkMapping -SourceNetwork $sourceNetwork -DestinationNetwork $targetNetwork
+
+      $hcxMigration = New-HCXMigration -VM $hcxVm `
+        -MigrationType $MigrationType `
+        -SourceSite $sourceSite `
+        -DestinationSite $targetSite `
+        -DiskProvisionType Thin `
+        -RetainMac $true `
+        -TargetComputeContainer $targetContainer `
+        -TargetDatastore $targetDatastore `
+        -NetworkMapping $networkMapping `
+        -Folder $targetFolder `
+        -MobilityGroupMigration
+
+      $hcxMigrations += $hcxMigration
+    }
+
+    $mobilityGroup = New-HCXMobilityGroup -Name "vRNI_$($application.name)_$($timestamp)" -Migration $hcxMigrations -GroupConfiguration $mobilityGroupConfig
+    Test-HCXMobilityGroup -MobilityGroup $mobilityGroup
+    Start-HCXMobilityGroupMigration -MobilityGroup $mobilityGroup
   }
   catch {
+    if ($_.Exception -like "*already exists*") {
+      My-Logger -message "Mobility Group '$($application.name)_$($timestamp)' already exists - skipping" -color "Gray"
+    }
+    Write-Host $_
     continue
   }
+
+  My-Logger -message "Created Mobility Group: '$($application.name)_$($timestamp)'"
 }
 
 if ($PSCmdlet.ParameterSetName -eq "vRNI") {
   Disconnect-vRNIServer
 }
+Disconnect-HCXServer -Confirm:$false
 
-Write-Host ($newGroup | ConvertTo-Json)
+
