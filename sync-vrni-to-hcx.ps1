@@ -57,6 +57,8 @@ param (
   [switch]$SkipCertificateCheck
 )
 
+$ErrorActionPreference = 'SilentlyContinue'
+
 # Load required modules; PowerCLI HCX, a custom extension to that module, and PowervRNI
 $moduleHCX = Get-InstalledModule -Name VMware.VimAutomation.Hcx
 if (!($moduleHCX)) {
@@ -78,23 +80,8 @@ if ([version]$modulePowervRNI.Version -lt [version]"1.8") {
   throw "Required module 'PowervRNI' needs to be updated to 1.8+. It's at '$($modulePowervRNI.Version)' now. Please upgrade it by using: Update-Module PowervRNI"
 }
 Import-Module -Force PowervRNI
-
+Set-PowerCLIConfiguration -Scope User -ParticipateInCEIP $false
 Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -Confirm:$false
-
-# @lamw function
-Function My-Logger {
-  param(
-    [Parameter(Mandatory = $true)]
-    [String]$message,
-    [Parameter(Mandatory = $false)]
-    [String]$color = "Green"
-  )
-
-  $timeStamp = Get-Date -Format "MM-dd-yyyy_hh:mm:ss"
-
-  Write-Host -NoNewline -ForegroundColor White "[$timestamp]"
-  Write-Host -ForegroundColor $color " $message"
-}
 
 # Are we connecting to vRNI on-prem or vRNI Cloud?
 if ($PSCmdlet.ParameterSetName -eq "vRNI") {
@@ -125,11 +112,9 @@ if ($PSCmdlet.ParameterSetName -eq "vRNI") {
     $connection_credentials = Get-Credential -Message "vRealize Network Insight Platform Authentication"
   }
 
-  My-Logger -message "Connecting to vRealize Network Insight.."
   $connectionvRNI = Connect-vRNIServer -Server $vRNI_Server -Username $connection_credentials.Username -Password $connection_credentials.GetNetworkCredential().Password
 }
 else {
-  My-Logger -message "Connecting to vRealize Network Insight Cloud.."
   $connectionvRNI = Connect-NIServer -RefreshToken $vRNI_Cloud_API_Token
 }
 
@@ -138,7 +123,6 @@ if (!$connectionvRNI) {
 }
 
 # First, get a list of all applications that are in vRNI
-My-Logger -message "Retrieving applications from vRNI.."
 # Are we looking for specified applications?
 if ($Sync_Applications.Count -gt 0) {
   # If we are looking for specified applications, go through the specified apps and look them up individually
@@ -149,10 +133,6 @@ if ($Sync_Applications.Count -gt 0) {
       # Save the located app to the array that we'll pass onto HCX
       $vRNI_applications += $vRNI_app
     }
-    else {
-      My-Logger -message "Specified application '$($app)' not found - skipping" -color "Yellow"
-    }
-
   }
 }
 else {
@@ -198,8 +178,6 @@ foreach ($app in $vRNI_applications) {
 
   # Save the application record to the global app list
   $application_list += $application_record
-
-  My-Logger -message "Found application: '$($app.name)' with $($application_record.members.Count) VMs" -color "Gray"
 }
 
 # Sanity check
@@ -208,7 +186,6 @@ if (!($application_list)) {
 }
 
 # Connect to HCX. We need both the VAMI connection (to get the VC UUID) and the regular connection (Mobility Groups)
-My-Logger -message "Connecting to VMware HCX.."
 
 # Make sure either -HCX_Credential is set, or both -HCX_Username and -HCX_Password
 if (($PsBoundParameters.ContainsKey("HCX_Credential") -And $PsBoundParameters.ContainsKey("HCX_Username")) -Or
@@ -247,14 +224,8 @@ $hcx_connection = Connect-HcxServer @invokeRestMethodParams
 if ($hcx_connection -eq "") {
   throw "Unable to connect to HCX!"
 }
-# uncomment if you want to increase security, but defaulted to $true as the majority of infras have self-signed certs.
-#if ($SkipCertificateCheck -eq $True) {
-  $invokeRestMethodParams.Add("SkipCertificateCheck", $True)
-#}
-#else {
-#  $invokeRestMethodParams.Add("SkipCertificateCheck", $False)
-#}
 
+$invokeRestMethodParams.Add("SkipCertificateCheck", $True)
 $custom_hcx_connection = Connect-HcxServer_Custom @invokeRestMethodParams
 if ($custom_hcx_connection -eq "") {
   throw "Unable to connect to HCX Enterprise."
@@ -280,7 +251,7 @@ if ($destination_hcx -eq "") {
 # Save the HCX Cloud appliance UUID
 $Destination_HCX_UUID = $destination_hcx.Id
 
-
+$newGroup = "";
 $timestamp = (Get-Date).tostring("yyyy-MM-dd")
 
 foreach ($application in $application_list) {
@@ -289,15 +260,12 @@ foreach ($application in $application_list) {
     $newGroup = New-HcxMobilityGroup -Connection $custom_hcx_connection -Name "vRNI_$($application.name)_$($timestamp)" -SourceVC_UUID $Source_VC_UUID -DestinationHCX_UUID $Destination_HCX_UUID -DestinationVC_UUID $Destination_VC_UUID -VMs $application.members
   }
   catch {
-    if ($_.Exception -like "*already exists*") {
-      My-Logger -message "Mobility Group '$($application.name)_$($timestamp)' already exists - skipping" -color "Gray"
-    }
     continue
   }
-
-  My-Logger -message "Created Mobility Group: '$($application.name)_$($timestamp)'"
 }
 
 if ($PSCmdlet.ParameterSetName -eq "vRNI") {
   Disconnect-vRNIServer
 }
+
+Write-Host ($newGroup | ConvertTo-Json)
