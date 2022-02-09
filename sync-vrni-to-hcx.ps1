@@ -77,6 +77,10 @@ param (
   [String]$Target_NetworkName
 )
 
+# don't show progress
+$ProgressPreference = 'SilentlyContinue'
+$ProgressPreference = 'Continue'
+
 # @lamw function
 Function My-Logger {
   param(
