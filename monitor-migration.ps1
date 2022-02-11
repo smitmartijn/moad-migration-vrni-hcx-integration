@@ -48,7 +48,7 @@ if ($custom_hcx_connection -eq "") {
 }
 
 # first the the ID of the Mobility Group
-$mobilityGroupID = (Get-HcxMobilityGroup -Connection $custom_hcx_connection | Where-Object { $_.entityName -eq $MobilityGroupName }).id
+$mobilityGroupID = (Get-HcxMobilityGroup -Connection $custom_hcx_connection | Where-Object { $_.entityName -like $MobilityGroupName }).id
 Write-Host "Found Mobility Group ID: $($mobilityGroupID)"
 
 # now start checking for the migration status of this mobility group
